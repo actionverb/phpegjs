@@ -31,6 +31,7 @@ module.exports = function(ast, options) {
     var phpGlobalNamePrefix, phpGlobalNamespacePrefix, phpGlobalNamePrefixOrNamespaceEscaped;
     var phpNamespace = options.phpegjs.parserNamespace;
     var phpParserClass = options.phpegjs.parserClassName;
+    var ampCompatibility = options.phpegjs.ampCompatibility;
     if (phpNamespace) {
         phpGlobalNamePrefix = '';
         phpGlobalNamespacePrefix = '\\';
@@ -85,7 +86,9 @@ module.exports = function(ast, options) {
             function( c, i ) {
                 return 'private function peg_f' + i
                     + '(' + c.params + ') {'
+                    + (ampCompatibility ? ' return Amp\\Call(function() ' + (c.params.length > 0 ? 'use(' + c.params + ') ' : '') + '{' : '')
                     + c.code
+                    + (ampCompatibility ? '}); ' : '')
                     + '}';
             }
         ).join('\n');
@@ -118,7 +121,7 @@ module.exports = function(ast, options) {
             return "$this->peg_c" + i;
         } // |consts[i]| of the abstract machine
         function f(i) {
-            return "$this->peg_f" + i;
+            return (ampCompatibility ? "yield " : "") + "$this->peg_f" + i;
         } // |functions[i]| of the abstract machine
         function s(i) {
             return "$s" + i;
@@ -436,7 +439,7 @@ module.exports = function(ast, options) {
                         break;
 
                     case op.RULE:             // RULE r
-                        parts.push(stack.push("$this->peg_parse" + ast.rules[bc[ip + 1]].name + "()"));
+                        parts.push(stack.push((ampCompatibility ? "yield " : "") + "$this->peg_parse" + ast.rules[bc[ip + 1]].name + "()"));
                         ip += 2;
                         break;
 
@@ -462,7 +465,7 @@ module.exports = function(ast, options) {
 
         parts.push([
             'private function peg_parse' + rule.name + '() {',
-            ''
+            (ampCompatibility ? 'return Amp\\Call(function() {' : '')
         ].join('\n'));
 
         if (options.cache) {
@@ -480,7 +483,7 @@ module.exports = function(ast, options) {
         parts.push([
             '',
             '  return ' + s(0) + ';',
-            '}'
+            (ampCompatibility ? '}); }' : '}')
         ].join('\n'));
 
         return parts.join('\n');
@@ -499,6 +502,9 @@ module.exports = function(ast, options) {
     ].join('\n'));
     if (phpNamespace) {
         parts.push('namespace ' + phpNamespace + ';');
+    }
+    if (ampCompatibility) {
+        parts.push('use Amp;');
     }
     parts.push([
         '',
@@ -847,7 +853,12 @@ module.exports = function(ast, options) {
         parts.push('');
     }
 
-    parts.push('    $peg_result = call_user_func($peg_startRuleFunction);');
+    if (ampCompatibility) {
+      parts.push('    return Amp\\Call(function() use($peg_startRuleFunction, $old_regex_encoding) {');
+      parts.push('    $peg_result = yield call_user_func($peg_startRuleFunction);');
+    } else {
+      parts.push('    $peg_result = call_user_func($peg_startRuleFunction);');
+    }
 
     if (options.cache) {
         parts.push('');
@@ -875,6 +886,7 @@ module.exports = function(ast, options) {
         '      $this->cleanup_state(); // Free up memory',
         '      throw $exception;',
         '    }',
+        (ampCompatibility ? '    });' : ''),
         '  }',
         '',
         '};'

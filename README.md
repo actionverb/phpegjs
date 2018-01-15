@@ -82,6 +82,10 @@ Here are the options available to pass this way:
     string matching, case-insensitive character classes, and empty character
     classes).  Attempting to use these features with `mbstringAllowed: false`
     will cause `generate` to throw an error.
+  * `ampCompatibility` - if set to `true`, the Parser will expose itself
+    as a Coroutine for use with Amp (https://github.com/amphp).  This
+    allows you to use the `yield` keyword within your generated code to
+    wait for asynchronous tasks to complete.
 
 Using the Parser
 ----------------
